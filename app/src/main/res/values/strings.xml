@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">MarsPhotos</string>
+    <string name="fetch_photos">Fetch photos</string>
+</resources>
