@@ -1,9 +1,11 @@
 package com.ivantsov.marsphotos.util.glide
 
 import android.graphics.drawable.Drawable
+import android.util.Log
 import android.view.View
 import android.widget.ImageView
 import android.widget.ProgressBar
+import android.widget.TextView
 import com.bumptech.glide.Glide
 import com.bumptech.glide.load.DataSource
 import com.bumptech.glide.load.engine.GlideException
@@ -12,21 +14,28 @@ import com.bumptech.glide.request.RequestListener
 import com.bumptech.glide.request.RequestOptions
 
 
-class GlideImageLoader(private var mImageView: ImageView, private var mProgressBar: ProgressBar) {
+class GlideImageLoader(
+    private var mImageView: ImageView,
+    private var mProgressBar: ProgressBar,
+    private var mPercentLabel: TextView
+) {
 
-    fun load(url: String?, options: RequestOptions?) {
-        if (url == null || options == null) return
+    fun load(url: String, options: RequestOptions) {
         onConnecting()
 
+
         //set Listener & start
-        ProgressAppGlideModule.expect(url, object : ProgressAppGlideModule.UIonProgressListener {
+        val progressListener = object : ProgressAppGlideModule.UIonProgressListener {
             override fun onProgress(bytesRead: Long, expectedLength: Long) {
-                mProgressBar.progress = (100 * bytesRead / expectedLength).toInt()
+                val percent = (100 * bytesRead / expectedLength).toInt() //TODO: magic number
+                mProgressBar.progress = percent
+                mPercentLabel.text = "$percent%" //TODO: hardcoded text
             }
 
-            override val granualityPercentage: Float
-                get() = 1.0f
-        })
+            override val granualityPercentage: Float = 1.0f //TODO: magic number
+        }
+        ProgressAppGlideModule.registerListener(url, progressListener)
+
         //Get Image
         Glide.with(mImageView.context)
             .load(url)
@@ -62,10 +71,12 @@ class GlideImageLoader(private var mImageView: ImageView, private var mProgressB
 
     private fun onConnecting() {
         mProgressBar.visibility = View.VISIBLE
+        mPercentLabel.visibility = View.VISIBLE
     }
 
     private fun onFinished() {
         mProgressBar.visibility = View.GONE
+        mPercentLabel.visibility = View.GONE
         mImageView.visibility = View.VISIBLE
     }
 }

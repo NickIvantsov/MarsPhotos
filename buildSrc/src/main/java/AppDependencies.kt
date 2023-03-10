@@ -57,6 +57,9 @@ object AppDependencies {
     val annotationProcessorLibs = arrayListOf<String>().apply {
         add(glideCompiler)
     }
+    val kaptLibs = arrayListOf<String>().apply {
+        add(glideCompiler)
+    }
     val androidTestLibraries = arrayListOf<String>().apply {
         add(extJUnit)
         add(espressoCore)

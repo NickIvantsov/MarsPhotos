@@ -11,7 +11,6 @@ import com.bumptech.glide.load.model.GlideUrl
 import com.bumptech.glide.module.AppGlideModule
 import okhttp3.*
 import okio.*
-import java.io.IOException
 import java.io.InputStream
 
 
@@ -24,19 +23,18 @@ class ProgressAppGlideModule : AppGlideModule() {
             .addNetworkInterceptor { chain ->
                 val request: Request = chain.request()
                 val response: Response = chain.proceed(request)
-                val listener: ResponseProgressListener =
-                    DispatchingProgressListener()
-                response.newBuilder()
-                    .body(
-                        OkHttpProgressResponseBody(
-                            request.url(),
-                            response.body()!!,
-                            listener
-                        )
+
+                val listener: ResponseProgressListener = DispatchingProgressListener()
+
+                println("request.url(): ${request.url()}")
+                response.newBuilder().body(
+                    OkHttpProgressResponseBody(
+                        request.url(),
+                        response.body()!!,
+                        listener
                     )
-                    .build()
-            }
-            .build()
+                ).build()
+            }.build()
         registry.replace(
             GlideUrl::class.java,
             InputStream::class.java,
@@ -45,7 +43,7 @@ class ProgressAppGlideModule : AppGlideModule() {
     }
 
     private interface ResponseProgressListener {
-        fun update(url: HttpUrl?, bytesRead: Long, contentLength: Long)
+        fun update(url: HttpUrl, bytesRead: Long, contentLength: Long)
     }
 
     interface UIonProgressListener {
@@ -58,23 +56,24 @@ class ProgressAppGlideModule : AppGlideModule() {
         val granualityPercentage: Float
     }
 
-    private class DispatchingProgressListener internal constructor() : ResponseProgressListener {
-        private val handler: Handler
+    private class DispatchingProgressListener : ResponseProgressListener {
+        private val handler: Handler = Handler(Looper.getMainLooper())
 
-        init {
-            handler = Handler(Looper.getMainLooper())
-        }
-
-        override fun update(url: HttpUrl?, bytesRead: Long, contentLength: Long) {
-            //System.out.printf("%s: %d/%d = %.2f%%%n", url, bytesRead, contentLength, (100f * bytesRead) / contentLength);
+        override fun update(url: HttpUrl, bytesRead: Long, contentLength: Long) {
+            println("update(url: $url, bytesRead: $bytesRead, contentLength: $contentLength)")
+            System.out.printf("%s: %d/%d = %.2f%%%n", url, bytesRead, contentLength, (100f * bytesRead) / contentLength)
             val key = url.toString()
-            val listener = LISTENERS[key]
-                ?: return
+            println("url key: $key")
+            println("url: ${LISTENERS[getNameOfFile(key)]}")
+            val listener = LISTENERS[getNameOfFile(key)] ?: return
             if (contentLength <= bytesRead) {
                 forget(key)
             }
-            if (needsDispatch(key, bytesRead, contentLength, listener.granualityPercentage)) {
-                handler.post(Runnable { listener.onProgress(bytesRead, contentLength) })
+            val needsDispatch =
+                needsDispatch(key, bytesRead, contentLength, listener.granualityPercentage)
+            println("needsDispatch: $needsDispatch")
+            if (needsDispatch) {
+                handler.post { listener.onProgress(bytesRead, contentLength) }
             }
         }
 
@@ -91,8 +90,7 @@ class ProgressAppGlideModule : AppGlideModule() {
             val currentProgress = (percent / granularity).toLong()
             val lastProgress = PROGRESSES[key]
             return if (lastProgress == null || currentProgress != lastProgress) {
-                PROGRESSES[key] =
-                    currentProgress
+                PROGRESSES[key] = currentProgress
                 true
             } else {
                 false
@@ -103,20 +101,22 @@ class ProgressAppGlideModule : AppGlideModule() {
             private val LISTENERS: MutableMap<String, UIonProgressListener> = HashMap()
             private val PROGRESSES: MutableMap<String, Long> = HashMap()
             fun forget(url: String) {
-                LISTENERS.remove(url)
+                LISTENERS.remove(getNameOfFile(url))
                 PROGRESSES.remove(url)
             }
 
-            fun expect(url: String, listener: UIonProgressListener) {
-                LISTENERS[url] =
-                    listener
+            fun registerListener(url: String, listener: UIonProgressListener) {
+                println("STEP 4 save registerListener: url -> $url | listener -> $listener")
+                LISTENERS[getNameOfFile(url)] = listener
+                println("STEP 5 LISTENERS size: ${LISTENERS.size}")
             }
         }
 
     }
 
-    private class OkHttpProgressResponseBody internal constructor(
-        private val url: HttpUrl, private val responseBody: ResponseBody,
+    private class OkHttpProgressResponseBody(
+        private val url: HttpUrl,
+        private val responseBody: ResponseBody,
         private val progressListener: ResponseProgressListener
     ) : ResponseBody() {
         private var bufferedSource: BufferedSource? = null
@@ -139,7 +139,6 @@ class ProgressAppGlideModule : AppGlideModule() {
             return object : ForwardingSource(source) {
                 var totalBytesRead = 0L
 
-                @Throws(IOException::class)
                 override fun read(sink: Buffer, byteCount: Long): Long {
                     val bytesRead = super.read(sink, byteCount)
                     val fullLength = responseBody.contentLength()
@@ -160,8 +159,18 @@ class ProgressAppGlideModule : AppGlideModule() {
             DispatchingProgressListener.forget(url)
         }
 
-        fun expect(url: String, listener: UIonProgressListener) {
-            DispatchingProgressListener.expect(url, listener)
+        fun registerListener(url: String, listener: UIonProgressListener) {
+            println("Step 3: register listener: url: $url, listener: $listener")
+            DispatchingProgressListener.registerListener(url, listener)
+            println("result: ${getNameOfFile(url)} | url -> $url")
+        }
+
+        fun getNameOfFile(url: String): String{
+            val regex = """([^\\/]+)$""".toRegex()
+            println("pattern ${regex.pattern}")
+            val nam = url.split(regex)
+            println(nam.joinToString())
+            return url.replace(nam.first(),"")
         }
     }
 }

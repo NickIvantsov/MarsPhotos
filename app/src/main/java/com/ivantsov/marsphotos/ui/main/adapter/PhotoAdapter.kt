@@ -31,10 +31,11 @@ class PhotoAdapter(private val photoList: MutableList<PhotoItem> = ArrayList()) 
         photoList.addAll(list)
     }
 
-    inner class PhotoViewHolder(val binding: PhotoItemBinding) :
+    inner class PhotoViewHolder(private val binding: PhotoItemBinding) :
         RecyclerView.ViewHolder(binding.root) {
         fun bind(photoItem: PhotoItem) {
-
+            binding.progressBar.progress = PROGRESS_START
+            binding.tvPercent.text = "0%" //TODO: hardcoded text
             val options: RequestOptions = RequestOptions()
                 .centerCrop()
                 .placeholder(R.drawable.placeholder_image)
@@ -43,8 +44,13 @@ class PhotoAdapter(private val photoList: MutableList<PhotoItem> = ArrayList()) 
 
             GlideImageLoader(
                 binding.imageViewPhoto,
-                binding.progressBar
+                binding.progressBar,
+                binding.tvPercent
             ).load(photoItem.imgSrc, options)
         }
+    }
+
+    companion object {
+        private const val PROGRESS_START = 0
     }
 }
